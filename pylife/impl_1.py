@@ -7,24 +7,29 @@ from utils.animation import animate
 
 
 # number of row and columns for matrix
-SIZE = 10
+N = 10
+# number of cells inside matrix
+N_CELLS = N ** 2
 # number of generations / iterations that will be runned
 NUM_GEN = 50
-
-# matrix of cells (threads)
-cells = [[None for i in range(SIZE)] for j in range(SIZE)]
+# array of coordinates for initializing glider
+glider_coords = [(0, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
+# matrix of cells
+cells = [[None for _ in range(N)] for _ in range(N)]
 # matrix of states for each cell of each generation
-states = [[0 for i in range(SIZE)] for j in range(SIZE)]
+states = [[0 for _ in range(N)] for _ in range(N)]
 # array of states matrix for each generation
 generations = [states]
-
-generation_condition = Condition()
+# cell counter for tracking updated cells
 cells_done = 0
+# conditions and locks
+generation_condition = Condition()
 cells_done_lock = Lock()
 
 
 class Cell(Thread):
-    global SIZE
+    global N
+    global N_CELLS
     global NUM_GEN
     global cells
     global states
@@ -33,14 +38,14 @@ class Cell(Thread):
     global cells_done
     global cells_done_lock
 
-    def __init__(self, x, y, state=0):
+    def __init__(self, x, y):
         super().__init__()
         self.coord = x, y
-        self.state = state
+        self.state = states[x][y]
         self.neighbours = self.find_neighbours()
         self.counter = 0
         self.counter_lock = Lock()
-        self.generation_lock = Semaphore()
+        self.generation_lock = Semaphore(0)
 
     def find_neighbours(self):
         '''
@@ -55,7 +60,7 @@ class Cell(Thread):
                 if i == 1 and j == 1:
                     continue
 
-                n = (x + i - 1) % SIZE, (y + j - 1) % SIZE
+                n = (x + i - 1) % N, (y + j - 1) % N
                 neighbours.append(n)
 
         return neighbours
@@ -67,8 +72,7 @@ class Cell(Thread):
         n_alive = 0
 
         for x, y in self.neighbours:
-            # n_alive += states[x][y]
-            n_alive += self.get_state(x, y)
+            n_alive += cells[x][y].get_state(x, y)
 
         return n_alive
 
@@ -87,34 +91,34 @@ class Cell(Thread):
 
         return states[x][y]
 
-    def update_state(self):
+    def next_state(self):
         '''
         check state of each neighbour and calculate new state
         '''
         count = self.check_neighbours()
-        # x, y = self.coord
-        state = states[self.coord[0]][self.coord[1]]
 
-        # come to life
-        if state == 0 and count == 3:
-            return 1, count
+        # stays alive
+        if self.state == 1 and (count == 2 or count == 3):
+            return
 
         # underpopulation / overpopulation
         if count < 2 or count > 3:
-            return 0, count
+            self.state = 0
+            return
 
-        # stays alive
-        if state == 1 and (count == 2 or count == 3):
-            return 1, count
+        # comes to life
+        if self.state == 0 and count == 3:
+            self.state = 1
 
-        return state, count
-
-    def next_generation(self):
+    def update_state(self):
+        '''
+        update states matrix with cell's new state
+        '''
         global cells_done
 
+        self.next_state()
         self.generation_lock.acquire()
-        next_state, _ = self.update_state()
-        self.state = next_state
+
         x, y = self.coord
         states[x][y] = self.state
 
@@ -122,16 +126,10 @@ class Cell(Thread):
         cells_done += 1
         generation_condition.acquire()
 
-        if cells_done == SIZE ** 2:
+        if cells_done == N_CELLS:
+            self.next_generation()
             cells_done = 0
             cells_done_lock.release()
-
-            new_generation = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
-            for x in range(SIZE):
-                for y in range(SIZE):
-                    new_generation[x][y] = states[x][y]
-
-            generations.append(new_generation)
             generation_condition.notify_all()
         else:
             cells_done_lock.release()
@@ -139,42 +137,72 @@ class Cell(Thread):
 
         generation_condition.release()
 
+    def next_generation(self):
+
+        new_generation = [[0 for _ in range(N)] for _ in range(N)]
+
+        for x in range(N):
+            for y in range(N):
+                new_generation[x][y] = states[x][y]
+
+        generations.append(new_generation)
+
     def run(self):
-
         for _ in range(NUM_GEN):
-            self.next_generation()
+            self.update_state()
 
 
-def init_cells():
+class GameOfLife():
+    global N
+    global states
+    global cells
 
-    for x in range(SIZE):
-        for y in range(SIZE):
-            state = random.randint(0, 1)
-            cells[x][y] = Cell(x, y)
-            states[x][y] = state
+    def __init__(self):
+        self.init_states()
+        self.init_cells()
 
+    def init_states(self):
+        '''
+        initialize starting states
+        '''
+        # random state values
+        for x in range(N):
+            for y in range(N):
+                state = random.randint(0, 1)
+                states[x][y] = 0
 
-def run():
+        # top left glider
+        for x, y in glider_coords:
+            states[x][y] = 1
 
-    # start
-    for x in range(SIZE):
-        for y in range(SIZE):
-            cells[x][y].start()
+    def init_cells(self):
+        '''
+        initialize matrix of Cells
+        '''
+        for x in range(N):
+            for y in range(N):
+                cells[x][y] = Cell(x, y)
 
-    # join
-    for x in range(SIZE):
-        for y in range(SIZE):
-            cells[x][y].join()
+    def run(self):
+        '''
+        run cells
+        '''
+        # start threads
+        for x in range(N):
+            for y in range(N):
+                cells[x][y].start()
 
-
-def main():
-    init_cells()
-    run()
+        # join threads
+        for x in range(N):
+            for y in range(N):
+                cells[x][y].join()
 
 
 if __name__ == '__main__':
 
-    main()
+    game_of_life = GameOfLife()
+    game_of_life.run()
+
     animation = animate(generations)
 
 

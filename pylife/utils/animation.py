@@ -15,4 +15,4 @@ def animate(steps):
     im = plt.matshow(steps[0], interpolation='None', animated=True)
     figure = im.get_figure()
 
-    return FuncAnimation(figure, animate, init_func=init, frames=len(steps), interval=500, blit=True, repeat=False)
+    return FuncAnimation(figure, animate, init_func=init, frames=len(steps), interval=100, blit=True, repeat=False)

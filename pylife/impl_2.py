@@ -6,7 +6,6 @@ from threading import Thread, Lock, Condition
 from IPython.display import HTML
 from utils.animation import animate
 
-
 N = 10
 N_CELLS = N ** 2
 N_GEN = 50
@@ -23,13 +22,8 @@ generation_condition = Condition()
 
 
 class Cell(Thread):
-    global N
-    global N_CELLS
-    global N_GEN
     global cells
     global cells_done
-    global cells_done_lock
-    global generation_condition
 
     def __init__(self, x, y, state=0):
         super().__init__()

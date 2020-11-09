@@ -7,11 +7,11 @@ from utils.animation import animate
 
 
 # number of row and columns for matrix
-N = 10
+N = 50
 # number of cells inside matrix
 N_CELLS = N ** 2
 # number of generations / iterations that will be runned
-NUM_GEN = 50
+NUM_GEN = 100
 # array of coordinates for initializing glider
 glider_coords = [(0, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
 # matrix of cells
@@ -165,12 +165,6 @@ class GameOfLife():
         '''
         initialize starting states
         '''
-        # random state values
-        for x in range(N):
-            for y in range(N):
-                state = random.randint(0, 1)
-                states[x][y] = 0
-
         # top left glider
         for x, y in glider_coords:
             states[x][y] = 1
@@ -203,7 +197,6 @@ if __name__ == '__main__':
     game_of_life = GameOfLife()
     game_of_life.run()
 
-    animation = animate(generations)
 
-
+animation = animate(generations)
 HTML(animation.to_html5_video())
